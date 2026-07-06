@@ -83,6 +83,9 @@
 		"tsx": "^4.22.4",
 		"typescript": "^6.0.3"
 	},
+	"trustedDependencies": [
+		"esbuild"
+	],
 	"omp": {
 		"extensions": [
 			"./src/index.ts"
