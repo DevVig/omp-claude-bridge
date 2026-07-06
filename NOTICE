@@ -1,0 +1,29 @@
+omp-claude-bridge
+=================
+
+This project is an Oh My Pi (OMP) port of the original "pi-claude-bridge"
+extension, extended with user-selectable Claude Code context-window controls.
+
+Original work
+-------------
+  pi-claude-bridge
+  Copyright (c) 2026 Eli Dickinson
+  https://github.com/elidickinson/pi-claude-bridge
+  Licensed under the MIT License.
+
+Derivative work
+---------------
+  omp-claude-bridge
+  Copyright (c) 2026 Jonathan Borgwing (https://github.com/DevVig)
+  Licensed under the MIT License.
+
+  Changes from the original:
+    - Ported the extension from Pi (@earendil-works/*) to Oh My Pi
+      (@oh-my-pi/*), including the extension manifest, provider registration,
+      message conversion, and config directory resolution.
+    - Added a `provider.contextWindow` setting ("auto" | "1m" | "200k") that
+      forces the Claude Code context window across every model, hiding models
+      that have no runtime for the selected window.
+
+The original MIT copyright notice is retained in the LICENSE file, as required
+by the MIT License.

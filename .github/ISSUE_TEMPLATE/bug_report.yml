@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a problem with omp-claude-bridge
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a report. A debug log excerpt makes bugs far easier to fix —
+        rerun with `CLAUDE_BRIDGE_DEBUG=1` and attach the relevant lines from
+        `~/.omp/agent/claude-bridge.log`.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set provider.contextWindow to "..."
+        2. Run `pi --model claude-bridge/...`
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model & context mode
+      placeholder: 'claude-bridge/claude-sonnet-5, contextWindow="1m"'
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: |
+        - omp-claude-bridge version:
+        - Oh My Pi version (`pi --version`):
+        - OS:
+        - Node version:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log excerpt
+      description: Relevant lines from ~/.omp/agent/claude-bridge.log (redact anything sensitive).
+      render: shell
