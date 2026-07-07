@@ -159,7 +159,8 @@ export function claudeCodeModelId(model: { id: string }, settings: LongContextSe
 			? resolveForcedTwoHundredKRuntimeModel(baseId)
 			: resolveClaudeCodeRuntimeModel(baseId, settings);
 	if (runtimeModel == null) {
-		throw new Error(`claude-bridge: model ${model.id} has no Claude Code runtime (contextWindow=${settings.contextWindow})`);
+		const requested = forced ?? settings.contextWindow;
+		throw new Error(`claude-bridge: model ${model.id} has no Claude Code runtime (contextWindow=${requested})`);
 	}
 	return runtimeModel.cliModelId;
 }
@@ -189,16 +190,19 @@ export function buildVariantModels<T extends { id: string; name: string; context
 ): T[] {
 	const result: T[] = [];
 	for (const m of models) {
-		const available: Array<{ kind: "1m" | "200k"; contextWindow: number }> = [];
-		if (resolveForcedOneMRuntimeModel(m.id) != null) available.push({ kind: "1m", contextWindow: ONE_M_CONTEXT });
-		if (resolveForcedTwoHundredKRuntimeModel(m.id) != null) available.push({ kind: "200k", contextWindow: TWO_HUNDRED_K_CONTEXT });
-
-		// Unknown model (not in the runtime tables): keep a single default-path entry.
-		if (available.length === 0) {
+		// Unknown model (not in the model tables): keep one default-path entry.
+		// Done before the forced-resolver probes below, which log "hiding it" on
+		// unknown ids — misleading noise for a model we actually keep.
+		if (!MODEL_IDS_IN_ORDER.includes(m.id)) {
 			const runtimeModel = resolveClaudeCodeRuntimeModel(m.id, settings);
 			if (runtimeModel != null) result.push({ ...m, contextWindow: runtimeModel.contextWindow, name: variantName(m.name, runtimeModel.contextWindow) });
 			continue;
 		}
+
+		// Known models always have at least one available window.
+		const available: Array<{ kind: "1m" | "200k"; contextWindow: number }> = [];
+		if (resolveForcedOneMRuntimeModel(m.id) != null) available.push({ kind: "1m", contextWindow: ONE_M_CONTEXT });
+		if (resolveForcedTwoHundredKRuntimeModel(m.id) != null) available.push({ kind: "200k", contextWindow: TWO_HUNDRED_K_CONTEXT });
 
 		// The config default decides which window is unsuffixed; fall back to the sole
 		// available window when the preferred one has no runtime (e.g. Haiku under
