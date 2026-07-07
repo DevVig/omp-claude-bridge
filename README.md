@@ -85,9 +85,16 @@ To delegate from another provider instead, just ask: *"Ask Claude to review this
 
 ## Context window controls
 
-Claude Code serves different context windows depending on the exact model id it receives (e.g. bare `claude-fable-5` serves 200K, while `claude-fable-5[1m]` serves 1M). `omp-claude-bridge` turns that into a single switch.
+Claude Code serves different context windows depending on the exact model id it receives (e.g. bare `claude-fable-5` serves 200K, while `claude-fable-5[1m]` serves 1M). `omp-claude-bridge` exposes both as **separate entries in the `/model` picker**, so you choose the window on demand:
 
-Set it once in `~/.omp/agent/claude-bridge.json`:
+- `claude-bridge/claude-opus-4-8` → **Opus 4.8 (1M)**
+- `claude-bridge/claude-opus-4-8-200k` → **Opus 4.8 (200K)**
+
+Switching window is just picking the other entry — no config edit, no reload. Every model appears once per window it supports, the `(1M)` / `(200K)` label is always shown, and each entry reports its true window so OMP's status bar and auto-compaction threshold stay accurate.
+
+### Default window
+
+The **unsuffixed** id (e.g. `claude-opus-4-8`) maps to a default window; the other window gets a `-1m` / `-200k` suffixed id. `provider.contextWindow` in `~/.omp/agent/claude-bridge.json` picks that default — it no longer hides models, it only decides which window is unsuffixed:
 
 ```json
 {
@@ -97,48 +104,55 @@ Set it once in `~/.omp/agent/claude-bridge.json`:
 }
 ```
 
-| Mode | Behavior |
+| Mode | Default (unsuffixed) window |
 | ---- | -------- |
-| `"auto"` *(default)* | Per-model policy based on measured SDK behavior. Respects `plan` and `longContextExtraUsage`. |
-| `"1m"` | Force the 1M window. Only 1M-capable models are registered; models with no 1M runtime are hidden. |
-| `"200k"` | Force the 200K window. Only 200K-capable models are registered; models with no 200K runtime are hidden. |
+| `"auto"` *(default)* | Per-model measured default. Respects `plan` and `longContextExtraUsage`. |
+| `"1m"` | 1M where the model has a 1M runtime, else its only window. |
+| `"200k"` | 200K where the model has a 200K runtime, else its only window. |
 
-The registered window always matches what the bridge actually requests, so OMP's status bar and auto-compaction threshold stay accurate.
+Both windows stay in the picker regardless of this setting (wherever a runtime exists); it only changes which one is the plain, unsuffixed id. So `modelRoles` / `enabledModels` that reference `claude-bridge/claude-opus-4-8` keep working and follow the default.
 
-### Per-model context window
+### Windows offered per model
 
-| Model | `auto` | `1m` | `200k` |
-| ----- | :----: | :--: | :----: |
-| `claude-opus-4-8` | 1M | 1M | 200K |
-| `claude-opus-4-7` | 1M | 1M | — hidden |
-| `claude-opus-4-6` | 200K¹ | 1M | 200K |
-| `claude-fable-5` | 200K | 1M | 200K |
-| `claude-sonnet-5` | 1M | 1M | 200K |
-| `claude-sonnet-4-6` | 200K² | 1M | 200K |
-| `claude-haiku-4-5` | 200K | — hidden | 200K |
+| Model | 200K entry | 1M entry | `auto` default |
+| ----- | :--------: | :------: | :------------: |
+| `claude-opus-4-8` | ✓ | ✓ | 1M |
+| `claude-opus-4-7` | — | ✓ | 1M |
+| `claude-opus-4-6` | ✓ | ✓ | 200K¹ |
+| `claude-fable-5` | ✓ | ✓ | 200K |
+| `claude-sonnet-5` | ✓ | ✓ | 1M |
+| `claude-sonnet-4-6` | ✓ | ✓ | 200K² |
+| `claude-haiku-4-5` | ✓ | — | 200K |
 
-¹ Opus 4.6 serves 1M in `auto` when `plan: "max"` or `longContextExtraUsage: true`.
-² Sonnet 4.6 serves 1M in `auto` when `longContextExtraUsage: true`.
+¹ Opus 4.6's `auto` default is 1M when `plan: "max"` or `longContextExtraUsage: true`.
+² Sonnet 4.6's `auto` default is 1M when `longContextExtraUsage: true`.
+
+The suffixed alternate exists only for the window that isn't the default — e.g. under `auto` you get `claude-opus-4-8` (1M) + `claude-opus-4-8-200k`, and under `"200k"` you get `claude-opus-4-8` (200K) + `claude-opus-4-8-1m`.
+
+> Forcing 1M is a *request*: some models may still be **served** 200K by your subscription entitlement. Set `CLAUDE_BRIDGE_DEBUG=1` to log the served window (see [Debugging](#debugging)).
 
 > An invalid `contextWindow` value logs a warning and falls back to `"auto"`, so a typo never breaks startup.
 
 ## Models
 
-Select any of these from `/model`:
+Pick any of these from `/model` — each entry shows a `(1M)` or `(200K)` label. The exact ids below assume the default `contextWindow: "auto"`; which id is unsuffixed vs `-1m` / `-200k` follows your configured [default window](#default-window).
 
-| Picker id | Notes |
-| --------- | ----- |
-| `claude-bridge/claude-fable-5` | Fast, 200K by default |
-| `claude-bridge/claude-opus-4-8` | Flagship, 1M by default |
-| `claude-bridge/claude-opus-4-7` | 1M by default |
+| Picker id (auto) | Window |
+| --------- | ------ |
+| `claude-bridge/claude-fable-5` | 200K |
+| `claude-bridge/claude-fable-5-1m` | 1M |
+| `claude-bridge/claude-opus-4-8` | 1M |
+| `claude-bridge/claude-opus-4-8-200k` | 200K |
+| `claude-bridge/claude-opus-4-7` | 1M |
 | `claude-bridge/claude-opus-4-6` | 200K (1M on Max / Extra Usage) |
-| `claude-bridge/claude-sonnet-5` | 1M by default, supports `xhigh` |
-| `claude-bridge/claude-sonnet-4-6` | 200K (1M on Extra Usage), supports `xhigh` |
-| `claude-bridge/claude-haiku-4-5` | 200K, cheapest |
+| `claude-bridge/claude-opus-4-6-1m` | 1M |
+| `claude-bridge/claude-sonnet-5` | 1M (supports `xhigh`) |
+| `claude-bridge/claude-sonnet-5-200k` | 200K |
+| `claude-bridge/claude-sonnet-4-6` | 200K (supports `xhigh`) |
+| `claude-bridge/claude-sonnet-4-6-1m` | 1M |
+| `claude-bridge/claude-haiku-4-5` | 200K (cheapest) |
 
 Bash commands issued by Claude Code get a 120-second default timeout (matching Claude Code's default), since OMP's bash has no timeout by default.
-
-**1M context notes:** Opus 4.7 and Opus 4.8 get 1M in `auto` by default. Opus 4.6 needs `plan: "max"` or `longContextExtraUsage: true`; Sonnet 4.6 needs `longContextExtraUsage: true`. Or just set `contextWindow: "1m"` to force it everywhere.
 
 ## AskClaude tool
 

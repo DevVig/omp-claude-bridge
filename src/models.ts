@@ -141,10 +141,25 @@ function resolveForcedTwoHundredKRuntimeModel(modelId: string): ClaudeCodeRuntim
 	}
 }
 
+// Split a registered picker id into its base model id and the forced window it
+// encodes. Variant ids carry a "-1m"/"-200k" suffix (see buildVariantModels); the
+// unsuffixed id maps to the config default. Base ids never end in those suffixes,
+// so the split is unambiguous.
+export function parseVariantId(id: string): { baseId: string; forced?: "1m" | "200k" } {
+	if (id.endsWith("-1m")) return { baseId: id.slice(0, -3), forced: "1m" };
+	if (id.endsWith("-200k")) return { baseId: id.slice(0, -5), forced: "200k" };
+	return { baseId: id };
+}
+
 export function claudeCodeModelId(model: { id: string }, settings: LongContextSettings): string {
-	const runtimeModel = resolveClaudeCodeRuntimeModel(model.id, settings);
+	const { baseId, forced } = parseVariantId(model.id);
+	const runtimeModel = forced === "1m"
+		? resolveForcedOneMRuntimeModel(baseId)
+		: forced === "200k"
+			? resolveForcedTwoHundredKRuntimeModel(baseId)
+			: resolveClaudeCodeRuntimeModel(baseId, settings);
 	if (runtimeModel == null) {
-		throw new Error(`claude-bridge: model ${model.id} is unavailable when provider.contextWindow=${settings.contextWindow}`);
+		throw new Error(`claude-bridge: model ${model.id} has no Claude Code runtime (contextWindow=${settings.contextWindow})`);
 	}
 	return runtimeModel.cliModelId;
 }
@@ -154,22 +169,56 @@ export function resolveModel<T extends { id: string }>(models: T[], input: strin
 	return models.find((m) => m.id === lower || m.id.includes(lower));
 }
 
-// Produce the model metadata registered with OMP. The registered contextWindow must
-// match the window the bridge actually requests from Claude Code, or OMP's status
-// bar and auto-compaction threshold will misreport. The runtime policy is based
-// on measured SDK behavior. Models with no runtime for the selected forced mode
-// are filtered out so they never appear in the picker.
-export function applyLongContext<T extends { id: string; name: string; contextWindow?: number | null }>(
+function variantName(baseName: string, contextWindow: number): string {
+	const label = contextWindow === ONE_M_CONTEXT ? "1M" : "200K";
+	// Strip any window hint pi-ai already baked into the name so we don't double it.
+	const base = baseName.replace(/\s*(?:\((?:1M|200K)\)|\b1M\b)\s*$/i, "").trimEnd();
+	return `${base} (${label})`;
+}
+
+// Expand each model into one registered entry per context window it supports, so
+// the user picks the window on demand from OMP's model picker. The unsuffixed id
+// (e.g. claude-opus-4-8) maps to the config default window; every other available
+// window gets a "-1m"/"-200k" suffixed id. Each entry's contextWindow must match
+// the window the bridge actually requests (see claudeCodeModelId), or OMP's status
+// bar and auto-compaction threshold will misreport. Both windows stay pickable
+// regardless of provider.contextWindow, which only picks the default.
+export function buildVariantModels<T extends { id: string; name: string; contextWindow?: number | null }>(
 	models: T[],
 	settings: LongContextSettings,
 ): T[] {
 	const result: T[] = [];
 	for (const m of models) {
-		const runtimeModel = resolveClaudeCodeRuntimeModel(m.id, settings);
-		if (runtimeModel == null) continue;
-		const { contextWindow } = runtimeModel;
-		const name = contextWindow > TWO_HUNDRED_K_CONTEXT && !/\b1M\b/i.test(m.name) ? `${m.name} 1M` : m.name;
-		result.push(contextWindow === m.contextWindow && name === m.name ? m : { ...m, contextWindow, name });
+		const available: Array<{ kind: "1m" | "200k"; contextWindow: number }> = [];
+		if (resolveForcedOneMRuntimeModel(m.id) != null) available.push({ kind: "1m", contextWindow: ONE_M_CONTEXT });
+		if (resolveForcedTwoHundredKRuntimeModel(m.id) != null) available.push({ kind: "200k", contextWindow: TWO_HUNDRED_K_CONTEXT });
+
+		// Unknown model (not in the runtime tables): keep a single default-path entry.
+		if (available.length === 0) {
+			const runtimeModel = resolveClaudeCodeRuntimeModel(m.id, settings);
+			if (runtimeModel != null) result.push({ ...m, contextWindow: runtimeModel.contextWindow, name: variantName(m.name, runtimeModel.contextWindow) });
+			continue;
+		}
+
+		// The config default decides which window is unsuffixed; fall back to the sole
+		// available window when the preferred one has no runtime (e.g. Haiku under
+		// "1m", Opus 4.7 under "200k").
+		const defaultRuntime = resolveClaudeCodeRuntimeModel(m.id, settings);
+		const preferredKind: "1m" | "200k" | undefined = defaultRuntime == null
+			? undefined
+			: defaultRuntime.contextWindow === ONE_M_CONTEXT ? "1m" : "200k";
+		const defaultKind = preferredKind != null && available.some((a) => a.kind === preferredKind)
+			? preferredKind
+			: available[0].kind;
+
+		const ordered = [
+			...available.filter((a) => a.kind === defaultKind),
+			...available.filter((a) => a.kind !== defaultKind),
+		];
+		for (const { kind, contextWindow } of ordered) {
+			const id = kind === defaultKind ? m.id : `${m.id}-${kind}`;
+			result.push({ ...m, id, contextWindow, name: variantName(m.name, contextWindow) });
+		}
 	}
 	return result;
 }
