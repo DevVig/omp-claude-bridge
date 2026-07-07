@@ -83,5 +83,5 @@ Unsuffixed ids all keep their current default-per-config behavior, so `modelRole
 - **Deployment**: the plugin is symlinked into OMP (`~/.omp/plugins/node_modules/omp-claude-bridge` → this repo), so the change goes live after a `/reload` in the OMP TUI.
 
 ### Notes / follow-ups
-- ✅ Done (2026-07-07): version bumped `0.7.0` → `0.8.0` in `package.json` and a `[0.8.0]` CHANGELOG entry added (variants change the registered model set). Not yet committed/tagged/published.
+- ✅ Released 0.8.0 (2026-07-07): version bump + `[0.8.0]` CHANGELOG committed (`dca5dc4` `chore: release 0.8.0`), pushed to `origin/main`, tagged `v0.8.0`, CI green, and a GitHub Release published (https://github.com/DevVig/omp-claude-bridge/releases/tag/v0.8.0). **npm publish still pending** — blocked on interactive `npm login` (registry name `omp-claude-bridge` confirmed unclaimed via dry-run).
 - Manual `/model` visual check must be done in the running OMP after `/reload` (can't drive the TUI from here).
