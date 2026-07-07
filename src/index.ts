@@ -22,6 +22,7 @@ import { loadConfig, type Config } from "./config.js";
 import { extractAgentsAppend } from "./agents-md.js";
 import { jsonSchemaToZodShape } from "./typebox-to-zod.js";
 import { buildActionSummary, type ToolCallState } from "./askclaude-ui.js";
+import { rateLimitNotice } from "./rate-limit.js";
 
 // Compat (#2): use factory if available (pi-ai ≥0.66), else fall back to constructor (gsd-pi etc.)
 const _piAi = piAi as any;
@@ -1025,10 +1026,6 @@ function processAssistantMessage(message: SDKMessage, model: Model<any>, customT
 	}
 }
 
-// The SDK emits `allowed_warning` rate-limit events even at trivial utilization
-// (e.g. 1%), so only surface them as the weekly/5h window nears its cap.
-const RATE_LIMIT_WARN_THRESHOLD = 80;
-
 /** Background consumer: iterates the SDK generator, pushing events to currentPiStream.
  *  Runs until the query ends. Per turn, the SDK yields stream_events (deltas), then
  *  an assistant message (completed blocks). On tool_use, the stream is ended by
@@ -1076,15 +1073,8 @@ async function consumeQuery(
 			case "rate_limit_event": {
 				const info = (message as any).rate_limit_info;
 				debug("consumeQuery: rate_limit_event", JSON.stringify(info).slice(0, 300));
-				if (info?.status === "rejected") {
-					const resetsAt = info.resetsAt ? new Date(info.resetsAt).toLocaleTimeString() : "unknown";
-					piUI?.notify(`Claude rate limited (${info.rateLimitType ?? "unknown"}) — resets at ${resetsAt}`, "warning");
-				} else if (info?.status === "allowed_warning") {
-					const utilization = Math.round(info.utilization ?? 0);
-					if (utilization >= RATE_LIMIT_WARN_THRESHOLD) {
-						piUI?.notify(`Claude rate limit warning: ${utilization}% used (${info.rateLimitType ?? ""})`, "warning");
-					}
-				}
+				const notice = rateLimitNotice(info);
+				if (notice) piUI?.notify(notice.message, notice.level);
 				break;
 			}
 			default:
