@@ -1025,6 +1025,10 @@ function processAssistantMessage(message: SDKMessage, model: Model<any>, customT
 	}
 }
 
+// The SDK emits `allowed_warning` rate-limit events even at trivial utilization
+// (e.g. 1%), so only surface them as the weekly/5h window nears its cap.
+const RATE_LIMIT_WARN_THRESHOLD = 80;
+
 /** Background consumer: iterates the SDK generator, pushing events to currentPiStream.
  *  Runs until the query ends. Per turn, the SDK yields stream_events (deltas), then
  *  an assistant message (completed blocks). On tool_use, the stream is ended by
@@ -1076,7 +1080,10 @@ async function consumeQuery(
 					const resetsAt = info.resetsAt ? new Date(info.resetsAt).toLocaleTimeString() : "unknown";
 					piUI?.notify(`Claude rate limited (${info.rateLimitType ?? "unknown"}) — resets at ${resetsAt}`, "warning");
 				} else if (info?.status === "allowed_warning") {
-					piUI?.notify(`Claude rate limit warning: ${Math.round(info.utilization ?? 0)}% used (${info.rateLimitType ?? ""})`, "warning");
+					const utilization = Math.round(info.utilization ?? 0);
+					if (utilization >= RATE_LIMIT_WARN_THRESHOLD) {
+						piUI?.notify(`Claude rate limit warning: ${utilization}% used (${info.rateLimitType ?? ""})`, "warning");
+					}
 				}
 				break;
 			}
