@@ -4,7 +4,6 @@
 // console.error, empty object returned) so the extension always starts.
 
 import type { SettingSource } from "@anthropic-ai/claude-agent-sdk";
-import type { ContextWindowMode } from "./models.js";
 import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils";
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
@@ -27,15 +26,6 @@ export interface Config {
 		settingSources?: SettingSource[];
 		strictMcpConfig?: boolean;
 		pathToClaudeCodeExecutable?: string;
-		// Subscription plan tier. Setting to "max" enables Opus 4.6 at 1M context
-		plan?: "pro" | "max";
-		// Set to true to opt into metered 1M context usage ("extra usage" in
-		// Anthropic billing). Enables Sonnet 4.6 [1m] on every plan and Opus 4.6
-		// [1m] on Pro.
-		longContextExtraUsage?: boolean;
-		// Force the Claude Code context window for every model:
-		//   "auto" (default) - per-model policy, "1m" - force 1M, "200k" - force 200K.
-		contextWindow?: ContextWindowMode;
 	};
 }
 
