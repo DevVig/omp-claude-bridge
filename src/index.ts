@@ -601,6 +601,19 @@ function syncSharedSession(
 		...(modelId ? { model: modelId } : {}),
 	});
 	convertAndImportMessages(session, priorMessages, customToolNameToSdk);
+	// Nothing survived conversion. This happens when every prior message is one pi
+	// synthesises rather than one Claude Code can replay — a lone developer notice
+	// ahead of the first user turn is the common case, and an interactive session in
+	// a project that injects rules or an AGENTS.md notice starts exactly that way.
+	// save() then writes no file at all, so resuming this id fails the whole turn
+	// with "No conversation found with session ID". Starting clean is also the
+	// accurate description: there is no prior turn for Claude Code to resume.
+	if (session.messages.length === 0) {
+		debug(`rebuild produced 0 records from ${priorMessages.length} prior message(s); starting clean instead of resuming a session that was never written`);
+		debug(`syncResult: path=clean-start empty-rebuild`);
+		sharedSession = null;
+		return { sessionId: null };
+	}
 	session.save();
 	verifyWrittenSession(session.jsonlPath, session.sessionId, session.messages.length, cwd);
 	sharedSession = { sessionId: session.sessionId, cursor: priorMessages.length, cwd };
