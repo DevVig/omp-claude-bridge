@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "status": {"type": "string", "enum": ["completed"]},
+    "base_sha": {"type": "string"},
+    "candidate_sha": {"type": "string"},
+    "reviewer": {"type": "string"},
+    "review_context": {"type": "string"},
+    "summary": {"type": "string"},
+    "covered_paths": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "path": {"type": "string"},
+          "line": {"type": "integer"},
+          "severity": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+          "kind": {"type": "string", "enum": ["defect", "suggestion"]},
+          "description": {"type": "string"}
+        },
+        "required": ["id", "path", "line", "severity", "kind", "description"]
+      }
+    }
+  },
+  "required": ["status", "base_sha", "candidate_sha", "reviewer", "review_context", "summary", "covered_paths", "limitations", "findings"]
+}
