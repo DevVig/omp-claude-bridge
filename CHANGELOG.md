@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+- Claude Code session-limit notices are reported as rate-limit errors without
+  emitting them as assistant text, allowing OMP to use its model fallback chain.
+
 ## [0.9.0] - 2026-10-27
 
 ### Added

@@ -1000,6 +1000,12 @@ function processAssistantMessage(message: SDKMessage, model: Model<any>, customT
 	if (c.turnSawStreamEvent) return;
 	const assistantMsg = (message as any).message;
 	if (!assistantMsg?.content) return;
+	if (message.type === "assistant") {
+		const limitNotice = message.message.content.find((block) =>
+			block.type === "text" && /^you've hit your session limit\b/i.test(block.text.trim()),
+		);
+		if (limitNotice?.type === "text") throw new Error(`Claude rate limit: ${limitNotice.text}`);
+	}
 	c.turnToolCallIds = [];
 	c.nextHandlerIdx = 0;
 	debug(`processAssistantMessage fallback: ${assistantMsg.content.length} blocks, types=${assistantMsg.content.map((b: any) => b.type).join(",")}`);
