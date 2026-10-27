@@ -10,7 +10,7 @@ import { createSession, deleteSession, repairToolPairing } from "cc-session-io";
 import { appendFileSync, mkdirSync, realpathSync, statSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
-import { PROVIDER_ID, messageContentToText, convertPiMessages } from "./convert.js";
+import { PROVIDER_ID, isPromptRole, messageContentToText, convertPiMessages } from "./convert.js";
 import { buildVariantModels, buildModels, claudeCodeEffort, claudeCodeModelId, type ContextWindowMode, type LongContextSettings, resolveModel as _resolveModel } from "./models.js";
 import { MCP_SERVER_NAME, MCP_TOOL_PREFIX, extractSkillsBlock } from "./skills.js";
 import { verifyWrittenSession as _verifyWrittenSession } from "./session-verify.js";
@@ -241,10 +241,11 @@ function extractAllToolResults(context: Context): McpResult[] {
 	return results;
 }
 
-/** Extract the last user message from context as a prompt string. Returns null if last message is not a user message. */
+/** Extract the last user message from context as a prompt string. Returns null if last message is not a user message.
+ *  OMP 18 developer messages (end-of-turn reminders, synthetic continues) count as user turns, like OMP's anthropic provider. */
 function extractUserPrompt(messages: Context["messages"]): string | null {
 	const last = messages[messages.length - 1];
-	if (!last || last.role !== "user") return null;
+	if (!last || !isPromptRole(last.role)) return null;
 	if (typeof last.content === "string") return last.content;
 	return messageContentToText(last.content) || "";
 }
@@ -253,7 +254,7 @@ function extractUserPrompt(messages: Context["messages"]): string | null {
  *  Returns null if no images — caller should fall back to string prompt. */
 function extractUserPromptBlocks(messages: Context["messages"]): ContentBlockParam[] | null {
 	const last = messages[messages.length - 1];
-	if (!last || last.role !== "user") return null;
+	if (!last || !isPromptRole(last.role)) return null;
 	if (typeof last.content === "string") {
 		debug(`extractUserPromptBlocks: content is string (length=${last.content.length})`);
 		return null;
@@ -1092,7 +1093,7 @@ function streamClaudeAgentSdk(model: Model<any>, context: Context, options?: Sim
 	const activeQuery = ctx().activeQuery !== null;
 	const allResults = activeQueryContexts.size > 0 ? extractAllToolResults(context) : [];
 	const resultCtx = allResults.length > 0 ? contextForToolResults(allResults) : undefined;
-	const isReentrantUserQuery = activeQuery && lastMsgRole === "user" && allResults.length === 0;
+	const isReentrantUserQuery = activeQuery && lastMsgRole != null && isPromptRole(lastMsgRole) && allResults.length === 0;
 	if (isReentrantUserQuery) {
 		debug(`provider: active query user-only call treated as reentrant fresh query, waitingHandlers=${ctx().pendingToolCalls.size}, ctx.msgs=${context.messages.length}`);
 	}
