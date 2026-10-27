@@ -1,11 +1,17 @@
 // Pure pi→Anthropic message conversion helpers.
 // Extracted so they can be tested without pulling in the full extension runtime.
 
-import type { Message as PiMessage } from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-ai-shim";
+import type { Message as PiMessage } from "@earendil-works/pi-ai";
 import type { Message as SessionMessage } from "cc-session-io";
 import { pascalCase } from "change-case";
 
 export const PROVIDER_ID = "claude-bridge";
+
+/** Roles Claude Code receives as a user turn. OMP 18 adds `developer` (reminders,
+ *  synthetic continues); its own anthropic provider sends those as `user` too. */
+export function isPromptRole(role: string): boolean {
+	return role === "user" || role === "developer";
+}
 
 export const PI_TO_SDK_TOOL_NAME: Record<string, string> = {
 	read: "Read", write: "Write", edit: "Edit", bash: "Bash",
@@ -53,7 +59,9 @@ export function convertPiMessages(
 	const sanitizedIds = new Map();
 
 	for (const msg of messages) {
-		if (msg.role === "user") {
+		if (isPromptRole(msg.role)) {
+			// A developer message without text carries nothing Claude Code can use.
+			if (msg.role !== "user" && !(typeof msg.content === "string" ? msg.content : messageContentToText(msg.content as any)).trim()) continue;
 			if (typeof msg.content === "string") {
 				anthropicMessages.push({ role: "user", content: msg.content || "[empty]" });
 			} else if (Array.isArray(msg.content)) {
