@@ -132,7 +132,7 @@ Every Claude model in OMP's bundled Anthropic catalog is registered automaticall
 | `claude-sonnet-5` | ✓ | ✓ | 1M |
 | `claude-sonnet-4-6` | ✓ | ✓ | 200K² |
 | `claude-sonnet-4-5` | ✓ | — | 200K |
-| `claude-haiku-5-5` | ✓ | ✓ | 200K³ |
+| `claude-haiku-5-5` | ✓ | ✓ | 1M |
 | `claude-haiku-4-5` | ✓ | — | 200K |
 
 ¹ Opus 4.6's `auto` default is 1M when `plan: "max"` or `longContextExtraUsage: true`.
@@ -142,6 +142,10 @@ Every Claude model in OMP's bundled Anthropic catalog is registered automaticall
 The suffixed alternate exists only for the window that isn't the default — e.g. under `auto` you get `claude-opus-4-8` (1M) + `claude-opus-4-8-200k`, and under `"200k"` you get `claude-opus-4-8` (200K) + `claude-opus-4-8-1m`.
 
 > Forcing 1M is a *request*: some models may still be **served** 200K by your subscription entitlement. Set `CLAUDE_BRIDGE_DEBUG=1` to log the served window (see [Debugging](#debugging)).
+
+> Conversely, recent Claude Code versions (measured on 2.1.296) serve the bare ids of Opus 4.8 / 5 / 5.5, Sonnet 5.5 and Haiku 5.5 at 1M. Their `-200k` entries then act as a "keep it small" option: OMP compacts at 200K even though Claude Code would accept more.
+
+> Model access still follows your Claude account: e.g. Mythos needs explicit access and Fable needs usage credits; otherwise Claude Code returns an error for that model.
 
 > An invalid `contextWindow` value logs a warning and falls back to `"auto"`, so a typo never breaks startup.
 
@@ -165,7 +169,7 @@ Pick any of these from `/model` — each entry shows a `(1M)` or `(200K)` label.
 | `claude-bridge/claude-sonnet-5` / `-200k` | 1M / 200K |
 | `claude-bridge/claude-sonnet-4-6` / `-1m` | 200K / 1M |
 | `claude-bridge/claude-sonnet-4-5` | 200K |
-| `claude-bridge/claude-haiku-5-5` / `-1m` | 200K / 1M |
+| `claude-bridge/claude-haiku-5-5` / `-200k` | 1M / 200K |
 | `claude-bridge/claude-haiku-4-5` | 200K (cheapest) |
 
 Thinking levels follow each model's effort ladder from the catalog, including `max`; a level a model lacks is clamped to the highest one it supports.

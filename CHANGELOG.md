@@ -11,7 +11,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a hardcoded list: Opus 5.5, Opus 5, Sonnet 5.5, Haiku 5.5, Fable 5.1,
   Mythos 5 / 5.1, Opus 4.5 and Sonnet 4.5 are now available, and future catalog
   models appear without a code change. Dated snapshot aliases stay hidden.
-- Opus 5.5 / Opus 5 / Sonnet 5.5 default to 1M (`[1m]`) with a `-200k` alternate.
+- Opus 5.5 / Opus 5 / Sonnet 5.5 / Haiku 5.5 default to 1M (`[1m]`) with a `-200k` alternate.
   Unmeasured 1M-capable models default to 200K with a `-1m` alternate.
 - `max` thinking level, for both the provider and AskClaude's `thinking` parameter.
 

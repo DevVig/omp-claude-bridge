@@ -156,13 +156,21 @@ test("5.5 models: Opus/Sonnet 5.5 default to 1M with a 200K alternate", () => {
 	assert.equal(claudeCodeModelId(m["claude-sonnet-5-5"], settings("auto")), "claude-sonnet-5-5[1m]");
 });
 
-test("unmeasured 1M catalog models default to 200K and offer 1M as -1m", () => {
+test("Haiku 5.5 defaults to 1M; Fable 5.1 defaults to 200K with a -1m alternate", () => {
 	const m = Object.fromEntries(buildVariantModels(buildModels(CATALOG), settings("auto")).map((v) => [v.id, v]));
-	assert.equal(m["claude-haiku-5-5"].contextWindow, 200_000);
-	assert.equal(m["claude-haiku-5-5-1m"].contextWindow, 1_000_000);
-	assert.equal(claudeCodeModelId(m["claude-haiku-5-5"], settings("auto")), "claude-haiku-5-5");
-	assert.equal(claudeCodeModelId(m["claude-haiku-5-5-1m"], settings("auto")), "claude-haiku-5-5[1m]");
+	assert.equal(m["claude-haiku-5-5"].contextWindow, 1_000_000);
+	assert.equal(m["claude-haiku-5-5-200k"].contextWindow, 200_000);
+	assert.equal(claudeCodeModelId(m["claude-haiku-5-5"], settings("auto")), "claude-haiku-5-5[1m]");
+	assert.equal(m["claude-fable-5-1"].contextWindow, 200_000);
 	assert.equal(claudeCodeModelId(m["claude-fable-5-1-1m"], settings("auto")), "claude-fable-5-1[1m]");
+});
+
+test("unmeasured 1M catalog models default to 200K and offer 1M as -1m", () => {
+	const unknown = [{ id: "claude-opus-6", name: "Claude Opus 6", contextWindow: 1_000_000 }];
+	const m = Object.fromEntries(buildVariantModels(buildModels(unknown), settings("auto")).map((v) => [v.id, v]));
+	assert.equal(m["claude-opus-6"].contextWindow, 200_000);
+	assert.equal(claudeCodeModelId(m["claude-opus-6"], settings("auto")), "claude-opus-6");
+	assert.equal(claudeCodeModelId(m["claude-opus-6-1m"], settings("auto")), "claude-opus-6[1m]");
 });
 
 test("resolveModel: family shortcuts pick the newest model; exact ids win", () => {
