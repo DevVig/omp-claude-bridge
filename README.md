@@ -116,12 +116,17 @@ Both windows stay in the picker regardless of this setting (wherever a runtime e
 
 | Model | 200K entry | 1M entry | `auto` default |
 | ----- | :--------: | :------: | :------------: |
+| `claude-opus-5-5` | ✓ | ✓ | 1M |
+| `claude-opus-5` | ✓ | ✓ | 1M |
 | `claude-opus-4-8` | ✓ | ✓ | 1M |
 | `claude-opus-4-7` | — | ✓ | 1M |
 | `claude-opus-4-6` | ✓ | ✓ | 200K¹ |
+| `claude-fable-5-1` | ✓ | ✓ | 200K |
 | `claude-fable-5` | ✓ | ✓ | 200K |
+| `claude-sonnet-5-5` | ✓ | ✓ | 1M |
 | `claude-sonnet-5` | ✓ | ✓ | 1M |
 | `claude-sonnet-4-6` | ✓ | ✓ | 200K² |
+| `claude-haiku-5-5` | ✓ | ✓ | 200K |
 | `claude-haiku-4-5` | ✓ | — | 200K |
 
 ¹ Opus 4.6's `auto` default is 1M when `plan: "max"` or `longContextExtraUsage: true`.
@@ -139,6 +144,12 @@ Pick any of these from `/model` — each entry shows a `(1M)` or `(200K)` label.
 
 | Picker id (auto) | Window |
 | --------- | ------ |
+| `claude-bridge/claude-opus-5-5` | 1M |
+| `claude-bridge/claude-opus-5-5-200k` | 200K |
+| `claude-bridge/claude-opus-5` | 1M |
+| `claude-bridge/claude-opus-5-200k` | 200K |
+| `claude-bridge/claude-fable-5-1` | 200K |
+| `claude-bridge/claude-fable-5-1-1m` | 1M |
 | `claude-bridge/claude-fable-5` | 200K |
 | `claude-bridge/claude-fable-5-1m` | 1M |
 | `claude-bridge/claude-opus-4-8` | 1M |
@@ -146,10 +157,14 @@ Pick any of these from `/model` — each entry shows a `(1M)` or `(200K)` label.
 | `claude-bridge/claude-opus-4-7` | 1M |
 | `claude-bridge/claude-opus-4-6` | 200K (1M on Max / Extra Usage) |
 | `claude-bridge/claude-opus-4-6-1m` | 1M |
+| `claude-bridge/claude-sonnet-5-5` | 1M |
+| `claude-bridge/claude-sonnet-5-5-200k` | 200K |
 | `claude-bridge/claude-sonnet-5` | 1M (supports `xhigh`) |
 | `claude-bridge/claude-sonnet-5-200k` | 200K |
 | `claude-bridge/claude-sonnet-4-6` | 200K (supports `xhigh`) |
 | `claude-bridge/claude-sonnet-4-6-1m` | 1M |
+| `claude-bridge/claude-haiku-5-5` | 200K |
+| `claude-bridge/claude-haiku-5-5-1m` | 1M |
 | `claude-bridge/claude-haiku-4-5` | 200K (cheapest) |
 
 Bash commands issued by Claude Code get a 120-second default timeout (matching Claude Code's default), since OMP's bash has no timeout by default.
@@ -219,7 +234,7 @@ Config is read from `~/.omp/agent/claude-bridge.json` (global) and the project O
 | `appendSystemPrompt` | `true` | Append OMP's AGENTS.md and skills. |
 | `settingSources` | — | Claude Code filesystem settings to load; only applied when `appendSystemPrompt: false`. |
 | `strictMcpConfig` | `true` | Block MCP servers from `~/.claude.json` / `.mcp.json`. Cloud MCP is always blocked. |
-| `pathToClaudeCodeExecutable` | — | Path to the `claude` binary, if the bundled one can't run on your OS/filesystem. |
+| `pathToClaudeCodeExecutable` | — | Path to the `claude` binary, if the bundled one can't run on your OS/filesystem — also required for model ids newer than the bundled CLI supports (e.g. `claude-opus-5-5` needs Claude Code ≥2.1.280, `claude-fable-5-1` ≥2.1.251). |
 
 ## How it works
 
