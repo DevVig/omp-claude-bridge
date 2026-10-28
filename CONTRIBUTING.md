@@ -12,7 +12,7 @@ bun install        # or: npm install
 ```
 
 Requirements:
-- Node.js >= 20
+- Bun >= 1.4.4; OMP >= 18.13.2
 - [Bun](https://bun.sh) (recommended) or npm
 - An Oh My Pi install for end-to-end testing ([omp.sh](https://omp.sh))
 
@@ -21,13 +21,13 @@ Requirements:
 Point Oh My Pi at your working copy so changes load on the next run:
 
 ```bash
-pi install /absolute/path/to/omp-claude-bridge
+omp install /absolute/path/to/omp-claude-bridge
 ```
 
 Enable debug logging while iterating:
 
 ```bash
-CLAUDE_BRIDGE_DEBUG=1 pi --list-models claude-bridge
+CLAUDE_BRIDGE_DEBUG=1 omp models claude-bridge
 # logs -> ~/.omp/agent/claude-bridge.log
 ```
 
@@ -35,7 +35,8 @@ CLAUDE_BRIDGE_DEBUG=1 pi --list-models claude-bridge
 
 ```bash
 bun run typecheck   # tsc --noEmit
-bun run test        # node --test unit suite
+bun run test:smoke  # actual OMP CLI with a controlled SDK (no network)
+bun run test        # isolated Bun unit suites
 ```
 
 Please make sure both pass. CI runs the same two checks on every pull request.

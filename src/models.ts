@@ -1,46 +1,70 @@
-// Canonical selection + display order for the model picker.
-// `resolveModel` returns the first partial match, so `opus` resolves to the first-listed opus entry.
-// Extracted from index.ts so tests can import without activating the extension.
+// Model selection + display-order policy for the model picker. The picker is
+// driven by pi-ai's anthropic catalog: models appear (and disappear) with it,
+// no per-model code here. Extracted from index.ts so tests can import without
+// activating the extension.
+// `resolveModel` resolves family shortcuts (opus/sonnet/fable) to the newest
+// matching id regardless of sort order; sort order only drives picker display.
 
-export const MODEL_IDS_IN_ORDER = ["claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-4-5"];
+const TWO_HUNDRED_K_CONTEXT = 200_000;
+const ONE_M_CONTEXT = 1_000_000;
 
-// Workaround for models that ship without a thinkingLevelMap. Sonnet 5 and
-// Sonnet 4.6 have no map, so getSupportedThinkingLevels hides xhigh (it's
-// opt-in). Both models' top effort tier is "max" with no real xhigh (verified
-// via Claude Code's supportedModels API), so xhigh->max matches opus-4-6.
-const DEFAULT_THINKING_LEVEL_MAPS: Record<string, Record<string, string>> = {
-	"claude-sonnet-5": { xhigh: "max" },
-	"claude-sonnet-4-6": { xhigh: "max" },
-};
+// pi-ai ships dated snapshot ids (claude-opus-4-5-20251101, ...) alongside the
+// bare ids. They are never exposed - and must not steal first-partial-match
+// shortcuts like "opus-4-5" from the bare id.
+function isDatedAlias(id: string): boolean {
+	return /-20\d{6}$/.test(id);
+}
 
-// Project pi-ai's model entries down to the fields OMP's registerProvider expects,
-// and keep MODEL_IDS_IN_ORDER ordering. IDs missing from pi-ai are silently dropped.
-// Context-dependent display labels are applied after plan/long-context config is known.
+// Family tiers for display order: flagship families first; unknown families
+// sink below all known ones.
+const FAMILY_ORDER = ["fable", "opus", "sonnet", "haiku"];
+
+// Project pi-ai's model entries down to the fields pi's registerProvider expects,
+// newest generation first. Context-dependent display labels are applied after
+// plan/long-context config is known.
+// Version rank of a claude id, e.g. claude-opus-4-7 → ["opus", 4, 7]. Shared by
+// the display sort and resolveModel's newest-first partial tiebreak.
+function versionRank(id: string): { family: string; tuple: [number, number] } {
+	const [, family, major, minor] = id.split("-");
+	return { family, tuple: [Number(major) || 0, Number(minor) || 0] };
+}
+
 export function buildModels<T extends { id: string; [key: string]: any }>(piAiModels: T[]) {
-	return MODEL_IDS_IN_ORDER
-		.map((id) => piAiModels.find((m) => m.id === id))
-		.filter((m) => m != null)
-		// Forward thinkingLevelMap so per-model overrides (e.g. opus-4-7 mapping
-		// xhigh->xhigh instead of xhigh->max) are visible to the effort lookup.
-		.map(({ id, name, reasoning, input, contextWindow, maxTokens, thinkingLevelMap }) => ({
+	return piAiModels
+		.filter((m) => typeof m.id === "string" && !isDatedAlias(m.id))
+		.sort((a, b) => {
+			const fa = FAMILY_ORDER.indexOf(versionRank(a.id).family);
+			const fb = FAMILY_ORDER.indexOf(versionRank(b.id).family);
+			const ta = fa === -1 ? FAMILY_ORDER.length : fa;
+			const tb = fb === -1 ? FAMILY_ORDER.length : fb;
+			if (ta !== tb) return ta - tb;
+			const ra = versionRank(a.id).tuple;
+			const rb = versionRank(b.id).tuple;
+			if (ra[0] !== rb[0]) return rb[0] - ra[0];
+			if (ra[1] !== rb[1]) return rb[1] - ra[1];
+			return a.id.localeCompare(b.id);
+		})
+		// Forward thinkingLevelMap so pi-ai's per-model overrides (e.g. opus-4-8
+		// mapping xhigh→xhigh and max→max) are visible to the effort lookup.
+		.map(({ id, name, reasoning, input, contextWindow, maxTokens, thinkingLevelMap, thinking }) => ({
 			id,
 			name,
 			reasoning, input, contextWindow, maxTokens,
-			thinkingLevelMap: thinkingLevelMap ?? DEFAULT_THINKING_LEVEL_MAPS[id],
+			thinkingLevelMap,
+			thinking,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		}));
 }
 
-// User-selectable context-window policy (see provider.contextWindow in config).
-//   "auto"  - per-model default policy (measured SDK behavior).
-//   "1m"    - force 1M: only register 1M-capable models, request [1m] where needed.
-//   "200k"  - force 200K: only register 200K-capable models, request bare model ids.
 export type ContextWindowMode = "auto" | "1m" | "200k";
 
 export type LongContextSettings = {
 	plan: "pro" | "max";
 	longContextExtraUsage: boolean;
-	contextWindow: ContextWindowMode;
+	// Model ids whose declared 1M context Claude Code turned out not to serve;
+	// forces bare id at 200K without a code change.
+	forceTwoHundredK?: string[];
+	contextWindow?: ContextWindowMode;
 };
 
 export type ClaudeCodeRuntimeModel = {
@@ -48,181 +72,138 @@ export type ClaudeCodeRuntimeModel = {
 	contextWindow: number;
 };
 
-const TWO_HUNDRED_K_CONTEXT = 200_000;
-const ONE_M_CONTEXT = 1_000_000;
+// Measured Claude Agent SDK behavior - see diag/CONTEXT-SIZE.md:
+// - The `[1m]` suffix is the only reliable way to request 1M context through
+//   the SDK; bare ids serve 200K.
+// - An unentitled `[1m]` id is rejected outright (400/429), failing every turn
+//   — worse than serving 200K, so the default is bare id at 200K and only
+//   measured-good ids get `[1m]`.
+// - The registered contextWindow must match the window the bridge actually
+//   requests, or pi's status bar and compaction threshold misreport.
+// [1m] ids verified to serve 1M on every plan (sonnet-5-5 measured on Pro with
+// and without Extra Usage; opus-5-5 on Max per its run notes). A new model
+// serves 200K until someone measures it (diag/context-size.mjs) and adds it
+// here. Known exception unrelated to long context: fable-5 is not included
+// with Pro account without Extra Usage.
+const MEASURED_ONE_M = new Set([
+	"claude-fable-5",
+	"claude-fable-5-1",
+	"claude-opus-5-5",
+	"claude-opus-5",
+	"claude-opus-4-8",
+	"claude-opus-4-7",
+  "claude-sonnet-5",
+	"claude-sonnet-5-5",
+	"claude-haiku-5-5",
+]);
 
-// Measured Claude Agent SDK subscription/OAuth behavior. Do not infer this from
-// pi-ai's advertised contextWindow: bare Opus 4.7 serves 1M, bare Opus 4.8 does
-// not, bare Fable 5 serves 200K while claude-fable-5[1m] serves 1M, and [1m]
-// entitlement differs by model. Returns null when a model has no runtime for the
-// requested forced window (that model is hidden from the picker in that mode).
-export function resolveClaudeCodeRuntimeModel(modelId: string, settings: LongContextSettings): ClaudeCodeRuntimeModel | null {
-	switch (settings.contextWindow) {
-		case "1m":
-			return resolveForcedOneMRuntimeModel(modelId);
-		case "200k":
-			return resolveForcedTwoHundredKRuntimeModel(modelId);
-		case "auto":
-			return resolveAutoRuntimeModel(modelId, settings);
+// Measured exceptions: pi-ai declares 1M and the [1m] id works, but only when
+// the plan allows it.
+const PLAN_GATED_ONE_M: Record<string, (settings: LongContextSettings) => boolean> = {
+	// [1m] measured 1M on Max plan / extra usage; 429 on Pro without it.
+	"claude-opus-4-6": (settings) => settings.plan === "max" || settings.longContextExtraUsage,
+	// [1m] measured 1M with extra usage only.
+	"claude-sonnet-4-6": (settings) => settings.longContextExtraUsage,
+};
+
+export function resolveClaudeCodeRuntimeModel(
+	model: { id: string },
+	settings: LongContextSettings,
+): ClaudeCodeRuntimeModel {
+	const { baseId: modelId, forced } = parseVariantId(model.id);
+	if (settings.forceTwoHundredK?.includes(modelId)) {
+		if (forced === "1m") throw new Error(`claude-bridge: ${modelId} is pinned to 200K`);
+		return { cliModelId: modelId, contextWindow: TWO_HUNDRED_K_CONTEXT };
 	}
+	const requested = forced ?? settings.contextWindow;
+	if (requested === "1m" && supportsOneM(modelId)) {
+		return { cliModelId: `${modelId}[1m]`, contextWindow: ONE_M_CONTEXT };
+	}
+	if (requested === "200k" && modelId !== "claude-opus-4-7") {
+		return { cliModelId: modelId, contextWindow: TWO_HUNDRED_K_CONTEXT };
+	}
+	if (forced) throw new Error(`claude-bridge: ${modelId} has no measured ${forced} runtime`);
+	if (MEASURED_ONE_M.has(modelId)) {
+		return { cliModelId: `${modelId}[1m]`, contextWindow: ONE_M_CONTEXT };
+	}
+	const planGate = PLAN_GATED_ONE_M[modelId];
+	if (planGate) {
+		const useOneM = planGate(settings);
+		return {
+			cliModelId: useOneM ? `${modelId}[1m]` : modelId,
+			contextWindow: useOneM ? ONE_M_CONTEXT : TWO_HUNDRED_K_CONTEXT,
+		};
+	}
+	// No measured row: bare id at 200K, the safe default (see diag/CONTEXT-SIZE.md).
+	return { cliModelId: modelId, contextWindow: TWO_HUNDRED_K_CONTEXT };
 }
 
-function resolveAutoRuntimeModel(modelId: string, settings: LongContextSettings): ClaudeCodeRuntimeModel {
-	switch (modelId) {
-		case "claude-opus-4-8":
-			return { cliModelId: "claude-opus-4-8[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-opus-4-7":
-			return { cliModelId: "claude-opus-4-7", contextWindow: ONE_M_CONTEXT };
-		case "claude-opus-4-6": {
-			const useOneM = settings.plan === "max" || settings.longContextExtraUsage;
-			return {
-				cliModelId: useOneM ? "claude-opus-4-6[1m]" : "claude-opus-4-6",
-				contextWindow: useOneM ? ONE_M_CONTEXT : TWO_HUNDRED_K_CONTEXT,
-			};
-		}
-		case "claude-fable-5":
-			return { cliModelId: "claude-fable-5", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		case "claude-sonnet-5":
-			return { cliModelId: "claude-sonnet-5[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-sonnet-4-6":
-			return {
-				cliModelId: settings.longContextExtraUsage ? "claude-sonnet-4-6[1m]" : "claude-sonnet-4-6",
-				contextWindow: settings.longContextExtraUsage ? ONE_M_CONTEXT : TWO_HUNDRED_K_CONTEXT,
-			};
-		case "claude-haiku-4-5":
-			return { cliModelId: "claude-haiku-4-5", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		default:
-			console.error(`claude-bridge: encountered model ${modelId} with no known context size, defaulting to 200K`);
-			return { cliModelId: modelId, contextWindow: TWO_HUNDRED_K_CONTEXT };
-	}
+function supportsOneM(modelId: string): boolean {
+	return MEASURED_ONE_M.has(modelId) || modelId in PLAN_GATED_ONE_M;
 }
 
-function resolveForcedOneMRuntimeModel(modelId: string): ClaudeCodeRuntimeModel | null {
-	switch (modelId) {
-		case "claude-opus-4-8":
-			return { cliModelId: "claude-opus-4-8[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-opus-4-7":
-			return { cliModelId: "claude-opus-4-7", contextWindow: ONE_M_CONTEXT };
-		case "claude-opus-4-6":
-			return { cliModelId: "claude-opus-4-6[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-fable-5":
-			return { cliModelId: "claude-fable-5[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-sonnet-5":
-			return { cliModelId: "claude-sonnet-5[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-sonnet-4-6":
-			return { cliModelId: "claude-sonnet-4-6[1m]", contextWindow: ONE_M_CONTEXT };
-		case "claude-haiku-4-5":
-			return null;
-		default:
-			console.error(`claude-bridge: encountered model ${modelId} with no known 1M runtime, hiding it`);
-			return null;
-	}
-}
-
-function resolveForcedTwoHundredKRuntimeModel(modelId: string): ClaudeCodeRuntimeModel | null {
-	switch (modelId) {
-		case "claude-opus-4-8":
-			return { cliModelId: "claude-opus-4-8", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		case "claude-opus-4-7":
-			return null;
-		case "claude-opus-4-6":
-			return { cliModelId: "claude-opus-4-6", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		case "claude-fable-5":
-			return { cliModelId: "claude-fable-5", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		case "claude-sonnet-5":
-			return { cliModelId: "claude-sonnet-5", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		case "claude-sonnet-4-6":
-			return { cliModelId: "claude-sonnet-4-6", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		case "claude-haiku-4-5":
-			return { cliModelId: "claude-haiku-4-5", contextWindow: TWO_HUNDRED_K_CONTEXT };
-		default:
-			console.error(`claude-bridge: encountered model ${modelId} with no known 200K runtime, hiding it`);
-			return null;
-	}
-}
-
-// Split a registered picker id into its base model id and the forced window it
-// encodes. Variant ids carry a "-1m"/"-200k" suffix (see buildVariantModels); the
-// unsuffixed id maps to the config default. Base ids never end in those suffixes,
-// so the split is unambiguous.
 export function parseVariantId(id: string): { baseId: string; forced?: "1m" | "200k" } {
 	if (id.endsWith("-1m")) return { baseId: id.slice(0, -3), forced: "1m" };
 	if (id.endsWith("-200k")) return { baseId: id.slice(0, -5), forced: "200k" };
 	return { baseId: id };
 }
 
+/** Keep OMP's on-demand context picker while sourcing models from its catalog. */
+export function buildVariantModels<T extends { id: string; name: string; contextWindow?: number | null }>(
+	models: T[], settings: LongContextSettings,
+): T[] {
+	return models.flatMap((model) => {
+		const runtime = resolveClaudeCodeRuntimeModel(model, settings);
+		const defaultKind = runtime.contextWindow === ONE_M_CONTEXT ? "1m" : "200k";
+		const available: Array<"1m" | "200k"> = [];
+		if (supportsOneM(model.id) && !settings.forceTwoHundredK?.includes(model.id)) available.push("1m");
+		if (model.id !== "claude-opus-4-7") available.push("200k");
+		const kinds = [defaultKind, ...available.filter((kind) => kind !== defaultKind)];
+		return kinds.map((kind) => {
+			const contextWindow = kind === "1m" ? ONE_M_CONTEXT : TWO_HUNDRED_K_CONTEXT;
+			const name = model.name.replace(/\s*(?:\((?:1M|200K)\)|\b1M\b)\s*$/i, "").trimEnd();
+			return {
+				...model, id: kind === defaultKind ? model.id : `${model.id}-${kind}`,
+				contextWindow, name: `${name} (${kind === "1m" ? "1M" : "200K"})`,
+			};
+		});
+	});
+}
+
 export function claudeCodeModelId(model: { id: string }, settings: LongContextSettings): string {
-	const { baseId, forced } = parseVariantId(model.id);
-	const runtimeModel = forced === "1m"
-		? resolveForcedOneMRuntimeModel(baseId)
-		: forced === "200k"
-			? resolveForcedTwoHundredKRuntimeModel(baseId)
-			: resolveClaudeCodeRuntimeModel(baseId, settings);
-	if (runtimeModel == null) {
-		const requested = forced ?? settings.contextWindow;
-		throw new Error(`claude-bridge: model ${model.id} has no Claude Code runtime (contextWindow=${requested})`);
-	}
-	return runtimeModel.cliModelId;
+	return resolveClaudeCodeRuntimeModel(model, settings).cliModelId;
 }
 
 export function resolveModel<T extends { id: string }>(models: T[], input: string): T | undefined {
 	const lower = input.toLowerCase();
-	return models.find((m) => m.id === lower || m.id.includes(lower));
+	// Exact first, then partial (mirrors pi's tryMatchModel ordering), so a
+	// longer newer id containing the input (claude-fable-5-1 vs "claude-fable-5")
+	// cannot shadow the exact match.
+	return models.find((m) => m.id === lower)
+		?? newestPartialMatch(models.filter((m) => m.id.includes(lower)));
 }
 
-function variantName(baseName: string, contextWindow: number): string {
-	const label = contextWindow === ONE_M_CONTEXT ? "1M" : "200K";
-	// Strip any window hint pi-ai already baked into the name so we don't double it.
-	const base = baseName.replace(/\s*(?:\((?:1M|200K)\)|\b1M\b)\s*$/i, "").trimEnd();
-	return `${base} (${label})`;
+// Newest match by version rank — independent of registration order.
+function newestPartialMatch<T extends { id: string }>(candidates: T[]): T | undefined {
+	if (candidates.length === 0) return undefined;
+	return candidates.reduce((best, m) => {
+		const [vb, vbest] = [versionRank(m.id).tuple, versionRank(best.id).tuple];
+		const newer = vb[0] !== vbest[0] ? vb[0] > vbest[0] : vb[1] > vbest[1];
+		return newer ? m : best;
+	});
 }
 
-// Expand each model into one registered entry per context window it supports, so
-// the user picks the window on demand from OMP's model picker. The unsuffixed id
-// (e.g. claude-opus-4-8) maps to the config default window; every other available
-// window gets a "-1m"/"-200k" suffixed id. Each entry's contextWindow must match
-// the window the bridge actually requests (see claudeCodeModelId), or OMP's status
-// bar and auto-compaction threshold will misreport. Both windows stay pickable
-// regardless of provider.contextWindow, which only picks the default.
-export function buildVariantModels<T extends { id: string; name: string; contextWindow?: number | null }>(
+// Produce the model metadata registered with pi. The registered contextWindow must
+// match the window the bridge actually requests from Claude Code, or pi's status
+// bar and auto-compaction threshold will misreport. The runtime policy is based
+// on measured SDK behavior - see diag/CONTEXT-SIZE.md
+export function applyLongContext<T extends { id: string; name: string; contextWindow?: number | null }>(
 	models: T[],
 	settings: LongContextSettings,
 ): T[] {
-	const result: T[] = [];
-	for (const m of models) {
-		// Unknown model (not in the model tables): keep one default-path entry.
-		// Done before the forced-resolver probes below, which log "hiding it" on
-		// unknown ids — misleading noise for a model we actually keep.
-		if (!MODEL_IDS_IN_ORDER.includes(m.id)) {
-			const runtimeModel = resolveClaudeCodeRuntimeModel(m.id, settings);
-			if (runtimeModel != null) result.push({ ...m, contextWindow: runtimeModel.contextWindow, name: variantName(m.name, runtimeModel.contextWindow) });
-			continue;
-		}
-
-		// Known models always have at least one available window.
-		const available: Array<{ kind: "1m" | "200k"; contextWindow: number }> = [];
-		if (resolveForcedOneMRuntimeModel(m.id) != null) available.push({ kind: "1m", contextWindow: ONE_M_CONTEXT });
-		if (resolveForcedTwoHundredKRuntimeModel(m.id) != null) available.push({ kind: "200k", contextWindow: TWO_HUNDRED_K_CONTEXT });
-
-		// The config default decides which window is unsuffixed; fall back to the sole
-		// available window when the preferred one has no runtime (e.g. Haiku under
-		// "1m", Opus 4.7 under "200k").
-		const defaultRuntime = resolveClaudeCodeRuntimeModel(m.id, settings);
-		const preferredKind: "1m" | "200k" | undefined = defaultRuntime == null
-			? undefined
-			: defaultRuntime.contextWindow === ONE_M_CONTEXT ? "1m" : "200k";
-		const defaultKind = preferredKind != null && available.some((a) => a.kind === preferredKind)
-			? preferredKind
-			: available[0].kind;
-
-		const ordered = [
-			...available.filter((a) => a.kind === defaultKind),
-			...available.filter((a) => a.kind !== defaultKind),
-		];
-		for (const { kind, contextWindow } of ordered) {
-			const id = kind === defaultKind ? m.id : `${m.id}-${kind}`;
-			result.push({ ...m, id, contextWindow, name: variantName(m.name, contextWindow) });
-		}
-	}
-	return result;
+	return models.map((m) => {
+		const { contextWindow } = resolveClaudeCodeRuntimeModel(m, settings);
+		const name = contextWindow > TWO_HUNDRED_K_CONTEXT && !/\b1M\b/i.test(m.name) ? `${m.name} 1M` : m.name;
+		return contextWindow === m.contextWindow && name === m.name ? m : { ...m, contextWindow, name };
+	});
 }

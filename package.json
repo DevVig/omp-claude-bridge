@@ -2,7 +2,7 @@
 	"name": "omp-claude-bridge",
 	"version": "0.8.1",
 	"private": false,
-	"description": "Oh My Pi extension that runs Claude Code (via the Claude Agent SDK) as a model provider, adds an AskClaude delegation tool, and lets you force the 1M / 200K context window per provider.",
+	"description": "Oh My Pi extension that integrates Claude Code via the Claude Agent SDK, with OMP tools, session continuity and selectable context windows.",
 	"keywords": [
 		"omp-package",
 		"oh-my-pi",
@@ -26,7 +26,8 @@
 		"url": "https://github.com/DevVig/omp-claude-bridge/issues"
 	},
 	"engines": {
-		"node": ">=20"
+		"node": ">=20",
+		"bun": ">=1.4.4"
 	},
 	"files": [
 		"src",
@@ -37,24 +38,24 @@
 		"assets"
 	],
 	"scripts": {
-		"test": "node --import tsx --test tests/unit-*.mjs",
-		"test:unit": "node --import tsx --test tests/unit-*.mjs",
-		"typecheck": "tsc --noEmit"
+		"test": "bun run test:unit",
+		"test:unit": "bun scripts/test-unit.mjs",
+		"typecheck": "tsc --noEmit",
+		"test:smoke": "bun tests/smoke-omp.mjs"
 	},
 	"type": "module",
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "^0.2.141",
-		"@anthropic-ai/sdk": "^0.73.0",
-		"cc-session-io": "^0.3.1",
+		"@anthropic-ai/claude-agent-sdk": "0.3.308",
+		"cc-session-io": "^0.4.0",
 		"change-case": "^5.4.4",
-		"typebox": "^1.3.0"
+		"@modelcontextprotocol/sdk": "^1.29.0"
 	},
 	"peerDependencies": {
-		"@oh-my-pi/pi-ai": ">=16.3.6",
-		"@oh-my-pi/pi-agent-core": ">=16.3.6",
-		"@oh-my-pi/pi-coding-agent": ">=16.3.6",
-		"@oh-my-pi/pi-tui": ">=16.3.6",
-		"@oh-my-pi/pi-utils": ">=16.3.6"
+		"@oh-my-pi/pi-ai": ">=18.13.2",
+		"@oh-my-pi/pi-agent-core": ">=18.13.2",
+		"@oh-my-pi/pi-coding-agent": ">=18.13.2",
+		"@oh-my-pi/pi-tui": ">=18.13.2",
+		"@oh-my-pi/pi-utils": ">=18.13.2"
 	},
 	"peerDependenciesMeta": {
 		"@oh-my-pi/pi-ai": {
@@ -74,14 +75,16 @@
 		}
 	},
 	"devDependencies": {
-		"@oh-my-pi/pi-ai": "^16.3.6",
-		"@oh-my-pi/pi-agent-core": "^16.3.6",
-		"@oh-my-pi/pi-coding-agent": "^16.3.6",
-		"@oh-my-pi/pi-tui": "^16.3.6",
-		"@oh-my-pi/pi-utils": "^16.3.6",
+		"@oh-my-pi/pi-ai": "18.13.2",
+		"@oh-my-pi/pi-agent-core": "18.13.2",
+		"@oh-my-pi/pi-coding-agent": "18.13.2",
+		"@oh-my-pi/pi-tui": "18.13.2",
+		"@oh-my-pi/pi-utils": "18.13.2",
 		"@types/node": "^24.13.2",
 		"tsx": "^4.22.4",
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"@oh-my-pi/pi-catalog": "18.13.2",
+		"@anthropic-ai/sdk": "^0.124.0"
 	},
 	"trustedDependencies": [
 		"esbuild"

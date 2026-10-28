@@ -1,7 +1,7 @@
 // Tool-result extraction: walks the context tail to collect this turn's
 // tool results. Pi appends results to context and calls the provider again;
 // this scrapes them back out. Walks past user messages (steer/followUp) that
-// OMP may inject between toolResults. Stops at the nearest assistant message
+// pi may inject between toolResults. Stops at the nearest assistant message
 // (turn boundary).
 // Extracted from index.ts so tests can import without activating the extension.
 

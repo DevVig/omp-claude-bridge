@@ -1,11 +1,11 @@
 // Status-line rendering helpers for the AskClaude tool.
 //
-// While Claude Code runs inside an AskClaude call, the OMP TUI can't surface
+// While Claude Code runs inside an AskClaude call, the pi TUI can't surface
 // each tool_use individually — there's only one status row for the whole
 // delegation. These helpers shape a tool_use record into a short, path-aware
 // label (e.g. "Read(src/foo.ts)", "Bash(git log --oneline…)") and collapse
 // runs of the same tool so the line doesn't flicker. Used only by
-// promptAndWait; the provider path exposes tools directly through OMP's TUI
+// promptAndWait; the provider path exposes tools directly through pi's TUI
 // and doesn't need this.
 
 export interface ToolCallState {
