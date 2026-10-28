@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Extension fails to load on Oh My Pi 18, which made `omp plugin install` abort with
+  `Cannot find package '@oh-my-pi/pi-coding-agent'` (issue #5). The `keyHint` import
+  moved to `@oh-my-pi/pi-tui/chrome/keybinding-hints`; the old
+  `@oh-my-pi/pi-coding-agent/modes/components/keybinding-hints` subpath is no longer in
+  the host-package map, and Bun reports a missing subpath as a missing package.
+
+### Changed
+- `@oh-my-pi/pi-tui` dev dependency raised to `^18.13.3`, the first line that
+  ships `chrome/keybinding-hints`, so `tsc --noEmit` resolves the new subpath.
+
 ## [0.8.1] - 2026-07-07
 
 ### Fixed
