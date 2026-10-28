@@ -4,7 +4,7 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSession, deleteSession, openSession } from "cc-session-io";
@@ -33,6 +33,62 @@ describe("syncSharedSession", () => {
 			assert.equal(result.preserveSharedSession, undefined);
 			assert.equal(__test.getSharedSession(null), null, "a clean start must not create a session state");
 		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("starts clean when no prior message survives conversion", () => {
+		const cwd = mkdtempSync(join(tmpdir(), "sync-shared-session-"));
+		const notices = [];
+		try {
+			__test.setPiUI({ notify: (message) => notices.push(message) });
+			const result = __test.syncSharedSession([
+				{ role: "assistant", content: [], stopReason: "aborted", timestamp: Date.now() },
+				{ role: "user", content: "Try again", timestamp: Date.now() },
+			], cwd);
+
+			assert.equal(result.sessionId, null, "there is no written conversation to resume");
+			assert.equal(result.preserveSharedSession, undefined);
+			assert.equal(__test.getSharedSession(null), null);
+			assert.deepEqual(notices, [], "an empty import is a clean start, not a corrupt session");
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("clears only the rebuilding session when its imported history becomes empty", () => {
+		const cwd = mkdtempSync(join(tmpdir(), "sync-shared-session-"));
+		const parentSessionId = randomUUID();
+		const childSessionId = randomUUID();
+		try {
+			for (const sessionId of [parentSessionId, childSessionId]) {
+				const session = createSession({ sessionId, projectPath: cwd });
+				session.importMessages([
+					{ role: "user", content: "Hi" },
+					{ role: "assistant", content: [{ type: "text", text: "Hello." }] },
+				]);
+				session.save();
+			}
+			const parentState = { sessionId: parentSessionId, cursor: 2, cwd, piSessionId: "parent" };
+			__test.setSharedSession("parent", parentState);
+			__test.setSharedSession("child", {
+				sessionId: childSessionId, cursor: 2, cwd, piSessionId: "child", needsRebuild: true,
+			});
+			const childPath = openSession({ sessionId: childSessionId, projectPath: cwd }).jsonlPath;
+
+			const result = __test.syncSharedSession([
+				{ role: "assistant", content: [], stopReason: "aborted", timestamp: Date.now() },
+				{ role: "user", content: "Try again", timestamp: Date.now() },
+			], cwd, undefined, undefined, "child");
+
+			assert.equal(result.sessionId, null);
+			assert.equal(__test.getSharedSession("child"), null, "discard the stale mirror after its file was removed");
+			assert.equal(existsSync(childPath), false, "an empty rebuild must not leave a session file to resume");
+			assert.deepEqual(__test.getSharedSession("parent"), parentState);
+			assert.equal(openSession({ sessionId: parentSessionId, projectPath: cwd }).messages.length, 2);
+		} finally {
+			deleteSession(parentSessionId, cwd);
+			deleteSession(childSessionId, cwd);
 			rmSync(cwd, { recursive: true, force: true });
 		}
 	});

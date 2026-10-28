@@ -843,6 +843,16 @@ function debugSessionPaths(label: string, cwd: string, jsonlPath: string): void 
 		...(modelId ? { model: modelId } : {}),
 	});
 	convertAndImportMessages(session, priorMessages, customToolNameToSdk, carried);
+	// Empty aborted turns or unsupported synthetic messages can leave no replayable
+	// history. save() then writes no file, so resuming this id would fail with
+	// "No conversation found with session ID". Start clean and drop only this
+	// OMP session's stale mirror; other sessions may still have active queries.
+	if (session.messages.length === 0) {
+		debug(`rebuild produced no replayable messages from ${priorMessages.length} prior message(s); starting clean`);
+		debug(`syncResult: path=clean-start empty-rebuild`);
+		setSessionStateFor(piSessionId, null);
+		return { sessionId: null };
+	}
 	session.save();
 	// records, not messages: `messages` filters out the attachment records that
 	// carrying an `@file` expansion across a rebuild writes into the same file.
