@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: Typecheck & test
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-vig
     steps:
       - name: Checkout
         uses: actions/checkout@v4
