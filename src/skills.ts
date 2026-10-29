@@ -1,19 +1,15 @@
-// Skills block extraction + MCP naming constants.
-// Extracted from index.ts so tests can import without activating the extension.
+import { formatSkillsForPrompt, type Skill } from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-coding-agent-shim";
 
 export const MCP_SERVER_NAME = "custom-tools";
 export const MCP_TOOL_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
-// Extract skills block from OMP's system prompt for forwarding to Claude Code.
-export function extractSkillsBlock(systemPrompt?: string): string | undefined {
-	if (!systemPrompt) return undefined;
-	const startMarker = "The following skills provide specialized instructions for specific tasks.";
-	const endMarker = "</available_skills>";
-	const start = systemPrompt.indexOf(startMarker);
-	if (start === -1) return undefined;
-	const end = systemPrompt.indexOf(endMarker, start);
-	if (end === -1) return undefined;
-	return rewriteSkillsBlock(systemPrompt.slice(start, end + endMarker.length).trim());
+export type SkillReadTool = "mcp" | "native" | "none";
+
+export function renderSkillsBlock(skills: Skill[], readTool: SkillReadTool): string | undefined {
+	if (readTool === "none" || skills.length === 0) return undefined;
+	const block = formatSkillsForPrompt(skills).trim();
+	if (!block) return undefined;
+	return readTool === "mcp" ? rewriteSkillsBlock(block) : block;
 }
 
 export function rewriteSkillsBlock(skillsBlock: string): string {

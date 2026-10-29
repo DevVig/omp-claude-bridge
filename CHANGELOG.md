@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Ported the complete pi-claude-bridge runtime through 2026-10-23 (`6aa276a`,
+  version 0.9.3 plus subsequent fixes), including its stream/session regression suite.
+- Updated to Agent SDK 0.3.308 and cc-session-io 0.4.0; target OMP >=18.13.2.
+- Preserve OMP prompt blocks, native tool schemas and parent/child session state;
+  route native summaries to the correct session directory even concurrently.
+- Derive models from OMP's catalog while retaining the 1M/200K picker variants.
+  Automatic context routing follows upstream's current measured model table.
+- AskClaude is opt-in and deprecated; Claude Code auto-memory defaults to off.
+  Retired `appendSystemPrompt`/`settingSources` in favor of OMP's effective prompt.
+- Run isolated regression suites and the actual OMP CLI smoke in Bun/CI.
+
+See [migration and verification details](documentation/upstream-sync-2026-10-23.md).
+
 ## [0.8.1] - 2026-07-07
 
 ### Fixed

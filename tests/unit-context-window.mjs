@@ -32,9 +32,9 @@ test("auto (Pro): each model expands to its available windows with correct ids, 
 	// Opus 4.6 (Pro): default 200K unsuffixed + 1M alternate.
 	assert.equal(m["claude-opus-4-6"].contextWindow, 200_000);
 	assert.equal(m["claude-opus-4-6-1m"].contextWindow, 1_000_000);
-	// Fable 5: default 200K + 1M alternate.
-	assert.equal(m["claude-fable-5"].contextWindow, 200_000);
-	assert.equal(m["claude-fable-5-1m"].contextWindow, 1_000_000);
+	// Upstream now measures Fable 5 at 1M; retain its 200K alternate.
+	assert.equal(m["claude-fable-5"].contextWindow, 1_000_000);
+	assert.equal(m["claude-fable-5-200k"].contextWindow, 200_000);
 	// Sonnet 5: default 1M + 200K alternate.
 	assert.equal(m["claude-sonnet-5"].contextWindow, 1_000_000);
 	assert.equal(m["claude-sonnet-5-200k"].contextWindow, 200_000);
@@ -59,7 +59,7 @@ test("the default variant is listed before its suffixed alternate", () => {
 	const ids = variants("auto").map((m) => m.id);
 	assert.ok(ids.indexOf("claude-opus-4-8") < ids.indexOf("claude-opus-4-8-200k"));
 	assert.ok(ids.indexOf("claude-sonnet-5") < ids.indexOf("claude-sonnet-5-200k"));
-	assert.ok(ids.indexOf("claude-fable-5") < ids.indexOf("claude-fable-5-1m"));
+	assert.ok(ids.indexOf("claude-fable-5") < ids.indexOf("claude-fable-5-200k"));
 });
 
 test("auto (Max): Opus 4.6 default flips to 1M and 200K becomes the suffixed alternate", () => {
@@ -98,7 +98,7 @@ test("parseVariantId splits window suffixes and leaves base ids intact", () => {
 });
 
 test("claudeCodeModelId: unsuffixed id follows the config default", () => {
-	assert.equal(claudeCodeModelId({ id: "claude-fable-5" }, settings("auto")), "claude-fable-5");
+	assert.equal(claudeCodeModelId({ id: "claude-fable-5" }, settings("auto")), "claude-fable-5[1m]");
 	assert.equal(claudeCodeModelId({ id: "claude-fable-5" }, settings("1m")), "claude-fable-5[1m]");
 	assert.equal(claudeCodeModelId({ id: "claude-opus-4-8" }, settings("auto")), "claude-opus-4-8[1m]");
 	assert.equal(claudeCodeModelId({ id: "claude-opus-4-8" }, settings("200k")), "claude-opus-4-8");
@@ -114,6 +114,6 @@ test("claudeCodeModelId: a suffixed id forces its window regardless of config", 
 test("claudeCodeModelId throws when a model has no runtime for the requested window", () => {
 	assert.throws(() => claudeCodeModelId({ id: "claude-haiku-4-5-1m" }, settings("auto")));
 	assert.throws(() => claudeCodeModelId({ id: "claude-opus-4-7-200k" }, settings("auto")));
-	assert.throws(() => claudeCodeModelId({ id: "claude-haiku-4-5" }, settings("1m")));
-	assert.throws(() => claudeCodeModelId({ id: "claude-opus-4-7" }, settings("200k")));
+	assert.equal(claudeCodeModelId({ id: "claude-haiku-4-5" }, settings("1m")), "claude-haiku-4-5");
+	assert.equal(claudeCodeModelId({ id: "claude-opus-4-7" }, settings("200k")), "claude-opus-4-7[1m]");
 });

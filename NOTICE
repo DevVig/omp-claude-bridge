@@ -22,8 +22,10 @@ Derivative work
       (@oh-my-pi/*), including the extension manifest, provider registration,
       message conversion, and config directory resolution.
     - Added a `provider.contextWindow` setting ("auto" | "1m" | "200k") that
-      forces the Claude Code context window across every model, hiding models
-      that have no runtime for the selected window.
+      selects the default context window while retaining supported alternatives
+      in OMP's model picker.
+    - Synchronized the original runtime through 2026-10-23 (6aa276a), adapting
+      prompt blocks, native schemas, lifecycle and summary routing to OMP 18.13.2.
 
 The original MIT copyright notice is retained in the LICENSE file, as required
 by the MIT License.

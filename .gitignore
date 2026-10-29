@@ -17,6 +17,12 @@ claude-bridge.log
 .env.*
 !.env.example
 
+# Local diagnostic captures and integration outputs (may contain prompts/code)
+.test-output/
+.captures/
+diag/captures/
+AGENTS.override.md
+
 # Editor / OS
 .DS_Store
 .idea/
