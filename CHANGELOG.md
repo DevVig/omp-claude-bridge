@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Latest Claude Code models: `claude-opus-5-5`, `claude-opus-5`, `claude-sonnet-5-5`,
+  `claude-haiku-5-5`, and `claude-fable-5-1`, each registered per context window it
+  serves. `opus` / `sonnet` / `haiku` / `fable` short names now resolve to the newest
+  model in each family.
+
+### Changed
+- `claude-opus-5-5` needs a Claude Code ≥2.1.280 binary and `claude-fable-5-1` ≥2.1.251.
+  The CLI bundled with `@anthropic-ai/claude-agent-sdk@0.2.141` is 2.1.141, so set
+  `provider.pathToClaudeCodeExecutable` to a newer `claude` binary for those ids.
+
 ## [0.8.1] - 2026-07-07
 
 ### Fixed
