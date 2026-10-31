@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildVariantModels, claudeCodeModelId, parseVariantId } from "../src/models.ts";
+import { buildModels, buildVariantModels, claudeCodeEffort, claudeCodeModelId, parseVariantId, resolveModel } from "../src/models.ts";
 
 // Minimal stand-ins for pi-ai model entries (buildVariantModels reads id, name,
 // contextWindow and spreads the rest through to each variant).
@@ -114,6 +114,77 @@ test("claudeCodeModelId: a suffixed id forces its window regardless of config", 
 test("claudeCodeModelId throws when a model has no runtime for the requested window", () => {
 	assert.throws(() => claudeCodeModelId({ id: "claude-haiku-4-5-1m" }, settings("auto")));
 	assert.throws(() => claudeCodeModelId({ id: "claude-opus-4-7-200k" }, settings("auto")));
-	assert.throws(() => claudeCodeModelId({ id: "claude-haiku-4-5" }, settings("1m")));
-	assert.throws(() => claudeCodeModelId({ id: "claude-opus-4-7" }, settings("200k")));
+});
+
+test("claudeCodeModelId: unsuffixed id falls back to the sole window, matching the picker entry", () => {
+	assert.equal(claudeCodeModelId({ id: "claude-haiku-4-5" }, settings("1m")), "claude-haiku-4-5");
+	assert.equal(claudeCodeModelId({ id: "claude-opus-4-7" }, settings("200k")), "claude-opus-4-7");
+});
+
+// Shaped like the host catalog's anthropic entries (incl. a dated alias).
+const CATALOG = [
+	{ id: "claude-haiku-4-5", name: "Claude Haiku 4.5", contextWindow: 200_000, thinking: { efforts: ["minimal", "low", "medium", "high", "xhigh"] } },
+	{ id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", contextWindow: 200_000 },
+	{ id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", contextWindow: 1_000_000, thinking: { efforts: ["low", "medium", "high", "xhigh", "max"] } },
+	{ id: "claude-opus-5", name: "Claude Opus 5", contextWindow: 1_000_000, thinking: { efforts: ["low", "medium", "high", "xhigh", "max"] } },
+	{ id: "claude-opus-5-5", name: "Claude Opus 5.5", contextWindow: 1_000_000, thinking: { efforts: ["low", "medium", "high", "xhigh", "max"] } },
+	{ id: "claude-haiku-5-5", name: "Claude Haiku 5.5", contextWindow: 1_000_000, thinking: { efforts: ["low", "medium", "high", "xhigh", "max"] } },
+	{ id: "claude-fable-5-1", name: "Claude Fable 5.1", contextWindow: 1_000_000 },
+	{ id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", contextWindow: 1_000_000, thinking: { efforts: ["low", "medium", "high"] } },
+];
+
+test("buildModels: every catalog model is kept, dated aliases dropped, newest first per family", () => {
+	const ids = buildModels(CATALOG).map((m) => m.id);
+	assert.deepEqual(ids, [
+		"claude-fable-5-1",
+		"claude-opus-5-5", "claude-opus-5",
+		"claude-sonnet-5-5", "claude-sonnet-4-6",
+		"claude-haiku-5-5", "claude-haiku-4-5",
+	]);
+	assert.deepEqual(buildModels(CATALOG).find((m) => m.id === "claude-opus-5-5").thinking, CATALOG[4].thinking);
+});
+
+test("5.5 models: Opus/Sonnet 5.5 default to 1M with a 200K alternate", () => {
+	const m = Object.fromEntries(buildVariantModels(buildModels(CATALOG), settings("auto")).map((v) => [v.id, v]));
+	assert.equal(m["claude-opus-5-5"].contextWindow, 1_000_000);
+	assert.equal(m["claude-opus-5-5"].name, "Claude Opus 5.5 (1M)");
+	assert.equal(m["claude-opus-5-5-200k"].contextWindow, 200_000);
+	assert.equal(m["claude-sonnet-5-5"].contextWindow, 1_000_000);
+	assert.equal(m["claude-sonnet-5-5-200k"].contextWindow, 200_000);
+	assert.equal(claudeCodeModelId(m["claude-opus-5-5"], settings("auto")), "claude-opus-5-5[1m]");
+	assert.equal(claudeCodeModelId(m["claude-opus-5-5-200k"], settings("auto")), "claude-opus-5-5");
+	assert.equal(claudeCodeModelId(m["claude-sonnet-5-5"], settings("auto")), "claude-sonnet-5-5[1m]");
+});
+
+test("unmeasured 1M catalog models default to 200K and offer 1M as -1m", () => {
+	const m = Object.fromEntries(buildVariantModels(buildModels(CATALOG), settings("auto")).map((v) => [v.id, v]));
+	assert.equal(m["claude-haiku-5-5"].contextWindow, 200_000);
+	assert.equal(m["claude-haiku-5-5-1m"].contextWindow, 1_000_000);
+	assert.equal(claudeCodeModelId(m["claude-haiku-5-5"], settings("auto")), "claude-haiku-5-5");
+	assert.equal(claudeCodeModelId(m["claude-haiku-5-5-1m"], settings("auto")), "claude-haiku-5-5[1m]");
+	assert.equal(claudeCodeModelId(m["claude-fable-5-1-1m"], settings("auto")), "claude-fable-5-1[1m]");
+});
+
+test("resolveModel: family shortcuts pick the newest model; exact ids win", () => {
+	const models = buildModels(CATALOG);
+	assert.equal(resolveModel(models, "opus").id, "claude-opus-5-5");
+	assert.equal(resolveModel(models, "sonnet").id, "claude-sonnet-5-5");
+	assert.equal(resolveModel(models, "haiku").id, "claude-haiku-5-5");
+	assert.equal(resolveModel(models, "claude-opus-5").id, "claude-opus-5");
+});
+
+test("claudeCodeEffort: clamps to the model's effort ladder and supports max", () => {
+	const [opus55] = buildModels(CATALOG).filter((m) => m.id === "claude-opus-5-5");
+	const sonnet46 = buildModels(CATALOG).find((m) => m.id === "claude-sonnet-4-6");
+	const haiku45 = buildModels(CATALOG).find((m) => m.id === "claude-haiku-4-5");
+	assert.equal(claudeCodeEffort(opus55, "xhigh"), "xhigh");
+	assert.equal(claudeCodeEffort(opus55, "max"), "max");
+	assert.equal(claudeCodeEffort(opus55, "minimal"), "low");
+	assert.equal(claudeCodeEffort(opus55, "off"), undefined);
+	// thinkingLevelMap override (sonnet-4-6 has no real xhigh).
+	assert.equal(claudeCodeEffort(sonnet46, "xhigh"), "max");
+	assert.equal(claudeCodeEffort(haiku45, "max"), "xhigh");
+	// No ladder: legacy table.
+	assert.equal(claudeCodeEffort({}, "xhigh"), "max");
+	assert.equal(claudeCodeEffort({}, "high"), "high");
 });

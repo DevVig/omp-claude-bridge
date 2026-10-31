@@ -5,7 +5,7 @@
 
 import type { SettingSource } from "@anthropic-ai/claude-agent-sdk";
 import type { ContextWindowMode } from "./models.js";
-import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
