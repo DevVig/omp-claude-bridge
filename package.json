@@ -77,7 +77,7 @@
 		"@oh-my-pi/pi-ai": "^16.3.6",
 		"@oh-my-pi/pi-agent-core": "^16.3.6",
 		"@oh-my-pi/pi-coding-agent": "^16.3.6",
-		"@oh-my-pi/pi-tui": "^16.3.6",
+		"@oh-my-pi/pi-tui": "^18.13.3",
 		"@oh-my-pi/pi-utils": "^16.3.6",
 		"@types/node": "^24.13.2",
 		"tsx": "^4.22.4",
