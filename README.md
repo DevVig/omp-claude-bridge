@@ -55,6 +55,8 @@ Authentication and billing run through Claude Code and your Anthropic subscripti
 
 ## Install
 
+Requires Oh My Pi 19.2.1 or newer in the 19.x series and a working Claude Code login.
+
 ```bash
 omp plugin install git:github.com/DevVig/omp-claude-bridge
 ```
@@ -66,14 +68,13 @@ omp plugin install git:github.com/DevVig/omp-claude-bridge
 # From the full HTTPS URL
 omp plugin install https://github.com/DevVig/omp-claude-bridge
 
-# From a local checkout (great for hacking on it)
+# Link a local checkout (great for hacking on it)
 git clone https://github.com/DevVig/omp-claude-bridge.git
-omp plugin install ./omp-claude-bridge
+(cd omp-claude-bridge && bun install)
+omp plugin link ./omp-claude-bridge
 ```
 
 </details>
-
-Requires Oh My Pi (`omp`) and a working Claude Code login.
 
 ## Quickstart
 
@@ -223,7 +224,7 @@ Config is read from `~/.omp/agent/claude-bridge.json` (global) and the project O
 
 ## How it works
 
-OMP's built-in tools are bridged to Claude Code and back, so from your side it behaves like any other OMP provider. Model routing lives in [`src/models.ts`](src/models.ts), which is deliberately free of runtime imports so the context-window policy stays unit-testable in isolation. On registration, the extension projects the pi-ai model list, applies the selected context-window policy, and registers the resulting models with OMP.
+OMP's built-in tools are bridged to Claude Code and back, so from your side it behaves like any other OMP provider. On registration, the extension reads OMP's bundled Anthropic catalog and applies the bridge's context-window policy in [`src/models.ts`](src/models.ts).
 
 ## Debugging
 

@@ -14,20 +14,20 @@ bun install        # or: npm install
 Requirements:
 - Node.js >= 20
 - [Bun](https://bun.sh) (recommended) or npm
-- An Oh My Pi install for end-to-end testing ([omp.sh](https://omp.sh))
+- [Oh My Pi](https://omp.sh/) 19.2.1 or newer in the 19.x series for end-to-end testing
 
 ## Developing against a live Oh My Pi
 
 Point Oh My Pi at your working copy so changes load on the next run:
 
 ```bash
-pi install /absolute/path/to/omp-claude-bridge
+omp plugin link ./omp-claude-bridge  # Run from the parent directory.
 ```
 
 Enable debug logging while iterating:
 
 ```bash
-CLAUDE_BRIDGE_DEBUG=1 pi --list-models claude-bridge
+CLAUDE_BRIDGE_DEBUG=1 omp models claude-bridge
 # logs -> ~/.omp/agent/claude-bridge.log
 ```
 

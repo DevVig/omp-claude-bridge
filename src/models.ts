@@ -1,34 +1,34 @@
+import type { Effort, Model } from "@oh-my-pi/pi-ai";
+
 // Canonical selection + display order for the model picker.
 // `resolveModel` returns the first partial match, so `opus` resolves to the first-listed opus entry.
 // Extracted from index.ts so tests can import without activating the extension.
 
 export const MODEL_IDS_IN_ORDER = ["claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-4-5"];
 
-// Workaround for models that ship without a thinkingLevelMap. Sonnet 5 and
-// Sonnet 4.6 have no map, so getSupportedThinkingLevels hides xhigh (it's
-// opt-in). Both models' top effort tier is "max" with no real xhigh (verified
-// via Claude Code's supportedModels API), so xhigh->max matches opus-4-6.
-const DEFAULT_THINKING_LEVEL_MAPS: Record<string, Record<string, string>> = {
-	"claude-sonnet-5": { xhigh: "max" },
-	"claude-sonnet-4-6": { xhigh: "max" },
-};
+type CatalogModel = Pick<Model, "id" | "name" | "reasoning" | "input" | "contextWindow" | "maxTokens" | "thinking">;
 
-// Project pi-ai's model entries down to the fields OMP's registerProvider expects,
-// and keep MODEL_IDS_IN_ORDER ordering. IDs missing from pi-ai are silently dropped.
-// Context-dependent display labels are applied after plan/long-context config is known.
-export function buildModels<T extends { id: string; [key: string]: any }>(piAiModels: T[]) {
+// Project the bundled catalog to the fields OMP's registerProvider expects,
+// in picker order. Context-dependent labels are applied separately.
+export function buildModels(piAiModels: readonly CatalogModel[]) {
 	return MODEL_IDS_IN_ORDER
 		.map((id) => piAiModels.find((m) => m.id === id))
 		.filter((m) => m != null)
-		// Forward thinkingLevelMap so per-model overrides (e.g. opus-4-7 mapping
-		// xhigh->xhigh instead of xhigh->max) are visible to the effort lookup.
-		.map(({ id, name, reasoning, input, contextWindow, maxTokens, thinkingLevelMap }) => ({
-			id,
-			name,
-			reasoning, input, contextWindow, maxTokens,
-			thinkingLevelMap: thinkingLevelMap ?? DEFAULT_THINKING_LEVEL_MAPS[id],
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		}));
+		.map(({ id, name, reasoning, input, contextWindow, maxTokens, thinking }) => {
+			// Sonnet's Claude Code max tier is exposed as xhigh in the bridge.
+			if (thinking && (id === "claude-sonnet-4-6" || id === "claude-sonnet-5")) {
+				const xhigh = "xhigh" as Effort.XHigh;
+				thinking = {
+					...thinking,
+					efforts: thinking.efforts.includes(xhigh) ? thinking.efforts : [...thinking.efforts, xhigh],
+					effortMap: { ...thinking.effortMap, [xhigh]: "max" },
+				};
+			}
+			return {
+				id, name, reasoning, input, contextWindow, maxTokens, thinking,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			};
+		});
 }
 
 // User-selectable context-window policy (see provider.contextWindow in config).

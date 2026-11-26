@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildVariantModels, claudeCodeModelId, parseVariantId } from "../src/models.ts";
+import { buildModels, buildVariantModels, claudeCodeModelId, parseVariantId } from "../src/models.ts";
 
 // Minimal stand-ins for pi-ai model entries (buildVariantModels reads id, name,
 // contextWindow and spreads the rest through to each variant).
@@ -14,6 +14,20 @@ const MODELS = [
 	{ id: "claude-sonnet-4-6", name: "Sonnet 4.6", contextWindow: 200_000 },
 	{ id: "claude-haiku-4-5", name: "Haiku 4.5", contextWindow: 200_000 },
 ];
+
+test("Sonnet 4.6 retains the bridge's xhigh effort on both windows", () => {
+	const catalogModel = {
+		id: "claude-sonnet-4-6",
+		name: "Sonnet 4.6",
+		thinking: { mode: "anthropic-adaptive", efforts: ["low", "medium", "high"] },
+	};
+	const models = buildVariantModels(buildModels([catalogModel]), settings("auto"));
+	assert.deepEqual(models.map(({ id, thinking }) => [id, thinking.efforts.at(-1), thinking.effortMap.xhigh]), [
+		["claude-sonnet-4-6", "xhigh", "max"],
+		["claude-sonnet-4-6-1m", "xhigh", "max"],
+	]);
+	assert.deepEqual(catalogModel.thinking.efforts, ["low", "medium", "high"]);
+});
 
 const settings = (contextWindow, extra = {}) => ({ plan: "pro", longContextExtraUsage: false, contextWindow, ...extra });
 const variants = (contextWindow, extra) => buildVariantModels(MODELS, settings(contextWindow, extra));

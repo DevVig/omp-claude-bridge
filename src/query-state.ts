@@ -1,12 +1,13 @@
-// Query state: QueryContext class + context stack.
+// Query state: QueryContext class + the top-level context.
 //
 // All per-query and per-turn mutable state lives here. Reentrant queries
-// (subagents) push the parent context onto a stack and get a fresh instance.
+// (subagents) get their own instance and replay their own deferred steers.
 // Adding a new field = one property on the class.
 //
 // Extracted from index.ts so tests can import without activating the extension.
 
-import type { AssistantMessage, AssistantMessageEventStream, Model } from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-ai-shim";
+import type { AssistantMessage, AssistantMessageEventStream, Model } from "@oh-my-pi/pi-ai";
+import type { BridgeSession } from "./bridge-session.js";
 import type { McpResult } from "./extract-tool-results.js";
 
 export interface PendingToolCall {
@@ -19,6 +20,9 @@ export class QueryContext {
 	activeQuery: unknown | null = null;
 	currentPiStream: AssistantMessageEventStream | null = null;
 	latestCursor = 0;
+	// Session this query may update; null for preserveSession queries, which
+	// run in an ephemeral CC session and must leave the preserved one alone.
+	ownedSession: BridgeSession | null = null;
 	pendingToolCalls = new Map<string, PendingToolCall>();
 	pendingResults = new Map<string, McpResult>();
 	turnToolCallIds: string[] = [];
@@ -53,28 +57,5 @@ export class QueryContext {
 }
 
 let _ctx = new QueryContext();
-const contextStack: QueryContext[] = [];
 
 export function ctx(): QueryContext { return _ctx; }
-
-export function stackDepth(): number { return contextStack.length; }
-
-export function pushContext(): void {
-	if (!_ctx.activeQuery) throw new Error("pushContext() called with no active query");
-	contextStack.push(_ctx);
-	_ctx = new QueryContext();
-}
-
-export function popContext(): void {
-	if (contextStack.length === 0) throw new Error("popContext() called with empty stack");
-	const parent = contextStack[contextStack.length - 1];
-	parent.deferredUserMessages.push(..._ctx.deferredUserMessages);
-	_ctx = contextStack.pop()!;
-}
-
-// Test-only: drop all state so test files can start from a clean module.
-// Not called from production.
-export function resetStack(): void {
-	_ctx = new QueryContext();
-	contextStack.length = 0;
-}

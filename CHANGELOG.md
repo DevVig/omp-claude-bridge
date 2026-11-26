@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Ported the provider and AskClaude renderer to Oh My Pi 19.2.1. The bridge
+  now uses OMP's bundled catalog, native streaming and tool-schema APIs, and
+  reactive text nodes for AskClaude's call and result previews.
+
+### Fixed
+- Each OMP provider session now keeps its own Claude Code session. In-process
+  subagents and `/btw` side requests no longer overwrite the main agent's
+  resume cursor, get their prior history imported, and replay deferred steers
+  against their own session.
+
 ## [0.8.1] - 2026-07-07
 
 ### Fixed
